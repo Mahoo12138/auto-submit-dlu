@@ -1,71 +1,87 @@
 #登陆相关配置
 login:
   #开放的模拟登陆api服务器地址
-  api: "http://www.zimo.wiki:8080/wisedu-unified-login-api-v1.0/api/login"
+  api: "http://119.29.11.121:8080/wisedu-unified-login-api-v1.0/api/login"
 #用户组配置
 users:
-  #单个用户配置
+  #单个用户配置，多用户在下方复制一份
   - user:
       #username 学号或者工号
-      username: '161105024'
+      username: '18422044'
       #password 密码
-      password: '161105024'
+      password: 'xm12345678'
+      #tellphone 电话号码
+      tellphone: '15507462014'
       #address 地址，定位信息
-      address: 中国四川省成都市金牛区一环路北1段-129号-附9号
+      address: 中国**省**市**县
       #email 接受通知消息的邮箱
-      email: 461009747@qq.com
+      email: ******@qq.com
       #school 学校全称
-      school: 宜宾学院
-  #多用户配置，将下面的注释去掉即可，如果有表单内容有图片，不建议使用多用户配置
-#  - user:
-#      #username 学号或者工号
-#      username: 161105024
-#      #password 密码
-#      password: 161105024
-#      #address 地址
-#      address: 中国四川省成都市金牛区一环路北1段-129号-附9号
-#      #email 接受通知消息的邮箱
-#      email: 461009747@qq.com
-#      school: 宜宾学院
+      school: 大连大学
+      #lon 当前位置经度，可以访问https://jingweidu.bmcx.com/获取
+      lon: '115.212345'
+      #lat 当前位置纬度
+      lat: '26.582144'
 #今日校园相关配置
 cpdaily:
   #表单组默认选项配置
+  #表单项类型，对应今日校园接口返回的fieldType字段，1代表文本，2代表单选，3代表多选，4代表图片
   defaults:
-    #表单默认选项配置，按顺序，注意，只有标必填项的才处理
+    #表单默认选项配置，按顺序，注意，只有标必填项的才处理，不会配置就执行generate.py
     - default:
-        #表单项类型，对应今日校园接口返回的fieldType字段，1代表文本，2代表单选，3代表多选，4代表图片
+        title: 你的学生类别？
         type: 2
-        #表单项标题
-        title: 本人是否接触过武汉（归来）人员
-        #表单项默认值
+        value: 本科生
+    - default:
+        title: 你属于下列哪个校区学生?
+        type: 2
+        value: 开发区校区
+    - default:
+        title: 你目前是否在校？
+        type: 2
+        value: 不在校（实习、实训、见习等）
+    - default:
+        title: 你目前是否有疑似/确诊新冠肺炎？
+        type: 2
         value: 否
     - default:
+        title: 你目前是否有发热、咳嗽等症状?
         type: 2
-        title: 本人是否接触过新型冠状病毒患者
         value: 否
     - default:
+        title: 你目前是否已就诊或正在住院?
         type: 2
-        title: 本人是否有新型冠状病毒类似病状
         value: 否
     - default:
+        title: 你目前是否被隔离？
         type: 2
-        title: 本人隔离方式
-        value: 家庭自我隔离
+        value: 否
     - default:
+        title: 近1个月是否去过重点疫区或接触过重点疫区人士？
         type: 2
-        title: 本人身体状况
-        value: 身体健康
+        value: 否
     - default:
+        title: 近1个月是否接触过确诊病例？
         type: 2
-        title: 共同居住家属情况
-        value: 正常
-
+        value: 否
+    - default:
+        title: 近1个月是否接触过疑似病例？
+        type: 2
+        value: 否
+    - default:
+        title: 你今天的体温是多少？
+        type: 2
+        value: 36~37.2℃
+    - default:
+        title: 本人是否承诺以上所填报的全部内容均属实、准确，不存在任何隐瞒与不实的情况，更无遗漏之处 (必填)
+        type: 2
+        value: 是
 Info:
   ServerChan: # 填写Server酱的SCKEY
   Qsmg: # 填写Qsmg酱的SCKEY
   Email:
     enable: true
-    server: smtp.exmail.qq.com # 填写邮件的smtp服务器
-    port: 465 # 填写邮件服务器的端口号
-    account: '' # 邮件服务器登录用户名
-    password: '' # 邮件服务器登录密码
+    server: 'smtp.qq.com' # 填写邮件的smtp服务器
+    port: 25 # 填写邮件服务器的端口号
+    account: 'mahoo12138@qq.com' # 邮件服务器登录用户名
+    password: '******' # 邮件服务器登录密码

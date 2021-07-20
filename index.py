@@ -35,7 +35,7 @@ def getCpdailyApis(user):
     apis = {}
     user = user['user']
     schools = requests.get(
-        url='https://www.cpdaily.com/v6/config/guest/tenant/list', verify=not debug).json()['data']
+        url='https://mobile.campushoy.com/v6/config/guest/tenant/list', verify=not debug).json()['data']
     flag = True
     for one in schools:
         if one['name'] == user['school']:
@@ -46,7 +46,7 @@ def getCpdailyApis(user):
             params = {
                 'ids': one['id']
             }
-            res = requests.get(url='https://www.cpdaily.com/v6/config/guest/tenant/info', params=params,
+            res = requests.get(url='https://mobile.campushoy.com/v6/config/guest/tenant/info', params=params,
                                verify=not debug)
             data = res.json()['data'][0]
             joinType = data['joinType']
@@ -251,22 +251,23 @@ def submitForm(formWid, address, collectWid, schoolTaskWid, form, session, host)
         'User-Agent': 'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 okhttp/3.12.4',
         'CpdailyStandAlone': '0',
         'extension': '1',
-        'Cpdaily-Extension': '1wAXD2TvR72sQ8u+0Dw8Dr1Qo1jhbem8Nr+LOE6xdiqxKKuj5sXbDTrOWcaf v1X35UtZdUfxokyuIKD4mPPw5LwwsQXbVZ0Q+sXnuKEpPOtk2KDzQoQ89KVs gslxPICKmyfvEpl58eloAZSZpaLc3ifgciGw+PIdB6vOsm2H6KSbwD8FpjY3 3Tprn2s5jeHOp/3GcSdmiFLYwYXjBt7pwgd/ERR3HiBfCgGGTclquQz+tgjJ PdnDjA==',
+        'Cpdaily-Extension': 'Ew9uONYq03Siz+VLCzZ4RiWRaXXBubIGc1d7ecaS2YmSDf1+elDL0gdwAw977HbPzvgR3pkeyW3djmnPOMxYro3Tps7PNmLoqfNTAECZqcM1LAyx+2zTfDExNa4yDWs83AyTnSKXs7oHQvFOfXhKNY1OXVzIdnwOkgaNw7XxzM1+2efCWAJgUBoHNV3n3MayLqOwPvSCvBke+SHC/Hy/53+ehU9A1lst6JlpGiFhlEOUybo5s5/o+b/XLUexuEE50IQgdPL4Hi4vPe4yVzA8QLpIMKSFIaRm',
         'Content-Type': 'application/json; charset=utf-8',
         # 请注意这个应该和配置文件中的host保持一致
         'Host': host,
         'Connection': 'Keep-Alive',
         'Accept-Encoding': 'gzip'
     }
-
     # 默认正常的提交参数json
     params = {"formWid": formWid, "address": address, "collectWid": collectWid, "schoolTaskWid": schoolTaskWid,
-              "form": form}
-    # print(params)
+              "form": form,"uaIsCpadaily": True}
+    # print(str(form))
     submitForm = 'https://{host}/wec-counselor-collector-apps/stu/collector/submitForm'.format(
         host=host)
     r = session.post(url=submitForm, headers=headers,
                      data=json.dumps(params), verify=not debug)
+    # print(r.json())
+    # print(json.dumps(form))
     msg = r.json()['message']
     return msg
 
@@ -276,7 +277,7 @@ title_text = '今日校园疫结果通知'
 def sendMessage(send, msg):
     if send != '':
         log('正在发送邮件通知。。。')
-        res = requests.post(url='http://www.zimo.wiki:8080/mail-sender/sendMail',
+        res = requests.post(url='http://119.29.11.121:8080/mail-sender/sendMail',
                             data={'title': title_text, 'content': getTimeStr() + str(msg), 'to': send})
 
         code = res.json()['code']
@@ -292,11 +293,11 @@ def sendEmail(send,msg):
     my_user = send      # 收件人邮箱账号，我这边发送给自己
     try:
         msg=MIMEText(getTimeStr() + str(msg),'plain','utf-8')
-        msg['From']=formataddr(["FromRunoob",my_sender])  # 括号里的对应发件人邮箱昵称、发件人邮箱账号
-        msg['To']=formataddr(["FK",my_user])              # 括号里的对应收件人邮箱昵称、收件人邮箱账号
+        msg['From']=formataddr(["Mahoo12138",my_sender])  # 括号里的对应发件人邮箱昵称、发件人邮箱账号
+        msg['To']=formataddr(["SB",my_user])              # 括号里的对应收件人邮箱昵称、收件人邮箱账号
         msg['Subject']=title_text               # 邮件的主题，也可以说是标题
 
-        server=smtplib.SMTP_SSL(config['Info']['Email']['server'], config['Info']['Email']['port'])  # 发件人邮箱中的SMTP服务器，端口是25
+        server=smtplib.SMTP(config['Info']['Email']['server'], config['Info']['Email']['port'])  # 发件人邮箱中的SMTP服务器，端口是25
         server.login(my_sender, my_pass)  # 括号中对应的是发件人邮箱账号、邮箱密码
         server.sendmail(my_sender,[my_user,],msg.as_string())  # 括号中对应的是发件人邮箱账号、收件人邮箱账号、发送邮件
         server.quit()  # 关闭连接
@@ -349,6 +350,7 @@ def main_handler(event, context):
                 log('模拟登陆成功。。。')
                 log('正在查询最新待填写问卷。。。')
                 params = queryForm(session, apis)
+                print(str(params))
                 if str(params) == 'None':
                     log('获取最新待填写问卷失败，可能是辅导员还没有发布。。。')
                     InfoSubmit('没有新问卷')
@@ -369,15 +371,15 @@ def main_handler(event, context):
                     InfoSubmit('今日已提交！')
                 else:
                     log('自动提交失败。。。')
-                    log('错误是' + msg)
-                    InfoSubmit('自动提交失败！错误是' + msg, user['user']['email'])
+                    log('错误是:' + msg)
+                    InfoSubmit('自动提交失败！错误是:' + msg, user['user']['email'])
                     exit(-1)
             else:
                 log('模拟登陆失败。。。')
                 log('原因可能是学号或密码错误，请检查配置后，重启脚本。。。')
                 exit(-1)
     except Exception as e:
-        InfoSubmit("出现问题了！"+str(e))
+        InfoSubmit("出现问题了！" + str(e))
         raise e
     else:
         return 'success'
