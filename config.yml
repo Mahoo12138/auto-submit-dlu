@@ -7,15 +7,15 @@ users:
   #单个用户配置，多用户在下方复制一份
   - user:
       #username 学号或者工号
-      username: '18422044'
+      username: '********'
       #password 密码
-      password: 'xm12345678'
+      password: '********'
       #tellphone 电话号码
-      tellphone: '15507462014'
+      tellphone: '********'
       #address 地址，定位信息
       address: 中国**省**市**县
       #email 接受通知消息的邮箱
-      email: ******@qq.com
+      email: 1*****@qq.com
       #school 学校全称
       school: 大连大学
       #lon 当前位置经度，可以访问https://jingweidu.bmcx.com/获取
@@ -36,10 +36,14 @@ cpdaily:
         title: 你属于下列哪个校区学生?
         type: 2
         value: 开发区校区
+    # - default:
+    #     title: 你目前是否在校？
+    #     type: 2
+    #     value: 不在校（实习、实训、见习等）
     - default:
-        title: 你目前是否在校？
+        title: 你目前是否已到校？
         type: 2
-        value: 不在校（实习、实训、见习等）
+        value: 已返校，本人现在学校内
     - default:
         title: 你目前是否有疑似/确诊新冠肺炎？
         type: 2
@@ -83,5 +87,5 @@ Info:
     enable: true
     server: 'smtp.qq.com' # 填写邮件的smtp服务器
     port: 25 # 填写邮件服务器的端口号
-    account: 'mahoo12138@qq.com' # 邮件服务器登录用户名
+    account: '1******@qq.com' # 邮件服务器登录用户名
     password: '******' # 邮件服务器登录密码

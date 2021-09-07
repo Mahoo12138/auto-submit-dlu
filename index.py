@@ -15,6 +15,10 @@ from email.utils import formataddr
 debug = False
 if debug:
     requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+# proxies={
+#     'http':'http://127.0.0.1:8899',
+#     'https':'https://127.0.0.1:8899'
+# }
 
 
 # 读取yml配置
@@ -140,6 +144,7 @@ def queryForm(session, apis):
     }
     res = session.post(queryCollectWidUrl, headers=headers,
                        data=json.dumps(params), verify=not debug)
+    # print(res.content)
     if len(res.json()['datas']['rows']) < 1:
         return None
 
@@ -166,24 +171,28 @@ def fillForm(session, form, host):
     sort = 1
     for formItem in form[:]:
         # 只处理必填项
-        if formItem['isRequired'] == 1:
+        if formItem['isRequired'] == True:
             default = config['cpdaily']['defaults'][sort - 1]['default']
             if formItem['title'] != default['title']:
                 log('第%d个默认配置不正确，请检查' % sort)
                 exit(-1)
             # 文本直接赋值
-            if formItem['fieldType'] == 1 or formItem['fieldType'] == 5:
+            if formItem['fieldType'] == "1" or formItem['fieldType'] == "5":
                 formItem['value'] = default['value']
             # 单选框需要删掉多余的选项
-            if formItem['fieldType'] == 2:
-                # 填充默认值
-                formItem['value'] = default['value']
+            if formItem['fieldType'] == "2":
+                # 填充默认值  
                 fieldItems = formItem['fieldItems']
                 for i in range(0, len(fieldItems))[::-1]:
                     if fieldItems[i]['content'] != default['value']:
                         del fieldItems[i]
+                        continue
+                    formItem['value'] = fieldItems[i]['itemWid']
+                formItem['formType'] = "0"
+                formItem['sortNum'] = str(sort)
+                formItem['logicShowConfig'] = {}
             # 多选需要分割默认选项值，并且删掉无用的其他选项
-            if formItem['fieldType'] == 3:
+            if formItem['fieldType'] == "3":
                 fieldItems = formItem['fieldItems']
                 defaultValues = default['value'].split(',')
                 for i in range(0, len(fieldItems))[::-1]:
@@ -196,11 +205,11 @@ def fillForm(session, form, host):
                     if flag:
                         del fieldItems[i]
             # 图片需要上传到阿里云oss
-            if formItem['fieldType'] == 4:
+            if formItem['fieldType'] == "4":
                 fileName = uploadPicture(session, default['value'], host)
                 formItem['value'] = getPictureUrl(session, fileName, host)
             log('必填问题%d：' % sort + formItem['title'])
-            log('答案%d：' % sort + formItem['value'])
+            log('答案%d：' % sort + formItem['fieldItems'][0]['content'])
             sort += 1
         else:
             form.remove(formItem)
@@ -320,25 +329,39 @@ def sendServerChan(msg):
 # Qmsg酱通知
 def sendQmsgChan(msg):
     log('正在发送Qmsg酱。。。')
-    res = requests.post(url='https://qmsg.zendee.cn:443/send/{0}'.format(config['Info']['Qsmg']),
-                            data={'msg': title_text + '\n时间：' + getTimeStr() + "\n 返回结果：" + str(msg)})
-    code = res.json()['success']
-    if code:
-        log('发送Qmsg酱通知成功。。。')
+    url = 'https://v1.hitokoto.cn?c=h&c=d&h=j'
+    try:
+        res = requests.get(url).json()
+        hito_msg='\n' + res['hitokoto'] +  '—— ' + res['from']
+        res = requests.post(url='https://qmsg.zendee.cn:443/send/{0}'.format(config['Info']['Qsmg']),
+                            data={'msg': title_text + '\n时间：' + getTimeStr() 
+                            + "\n结果：" + str(msg) + "\n一言："+str(hito_msg)})
+        # print(str(res.content))
+    except Exception as e:
+        log("出现问题了！" + str(e))
+        raise e
     else:
-        log('发送Qmsg酱通知失败。。。')
-        log('Qmsg酱返回结果'+code)
+        res = res.json()
+        code = res['success']
+        err = res['reason']
+        if code:
+            log('发送Qmsg酱通知成功。。。')
+        else:
+            log('发送Qmsg酱通知失败。。。')
+            log('Qmsg酱返回结果: ' + str(err))
 
 # 综合提交
 def InfoSubmit(msg, send=None):
-    if(None != send):
-        if(config['Info']['Email']['enable']): sendEmail(send,msg)
-        else: sendMessage(send, msg)
-    if(config['Info']['ServerChan']): sendServerChan(msg)
+    # if(None != send):
+    #     if(config['Info']['Email']['enable']): sendEmail(send,msg)
+    #     else: sendMessage(send, msg)
+    # if(config['Info']['ServerChan']): sendServerChan(msg)
     if(config['Info']['Qsmg']): sendQmsgChan(msg)
 
 
 def main_handler(event, context):
+    msg="今日校园提交成功"
+    # InfoSubmit('自动提交成功！')
     try:
         for user in config['users']:
             log('当前用户：' + str(user['user']['username']))
@@ -350,7 +373,6 @@ def main_handler(event, context):
                 log('模拟登陆成功。。。')
                 log('正在查询最新待填写问卷。。。')
                 params = queryForm(session, apis)
-                print(str(params))
                 if str(params) == 'None':
                     log('获取最新待填写问卷失败，可能是辅导员还没有发布。。。')
                     InfoSubmit('没有新问卷')
@@ -372,7 +394,7 @@ def main_handler(event, context):
                 else:
                     log('自动提交失败。。。')
                     log('错误是:' + msg)
-                    InfoSubmit('自动提交失败！错误是:' + msg, user['user']['email'])
+                    # InfoSubmit('自动提交失败！错误是:' + msg, user['user']['email'])
                     exit(-1)
             else:
                 log('模拟登陆失败。。。')
