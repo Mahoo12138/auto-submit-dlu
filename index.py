@@ -148,8 +148,13 @@ def queryForm(session, apis):
     if len(res.json()['datas']['rows']) < 1:
         return None
 
-    collectWid = res.json()['datas']['rows'][0]['wid']
-    formWid = res.json()['datas']['rows'][0]['formWid']
+    collectWid = None
+    formWid = None
+    for form in res.json()['datas']['rows']:
+        if form["subject"].find("疫情") != -1:
+            collectWid = form['wid']
+            formWid = form['formWid']
+            break
 
     detailCollector = 'https://{host}/wec-counselor-collector-apps/stu/collector/detailCollector'.format(
         host=host)
@@ -175,6 +180,7 @@ def fillForm(session, form, host):
             default = config['cpdaily']['defaults'][sort - 1]['default']
             if formItem['title'] != default['title']:
                 log('第%d个默认配置不正确，请检查' % sort)
+                InfoSubmit('第%d个默认配置不正确，请检查' % sort)
                 exit(-1)
             # 文本直接赋值
             if formItem['fieldType'] == "1" or formItem['fieldType'] == "5":
@@ -188,6 +194,10 @@ def fillForm(session, form, host):
                         del fieldItems[i]
                         continue
                     formItem['value'] = fieldItems[i]['itemWid']
+                if(len(fieldItems)==0): 
+                    log('第%d个默认配置选项不正确，请检查' % sort)
+                    InfoSubmit('第%d个默认配置选项不正确，请检查' % sort)
+                    exit(-1)
                 formItem['formType'] = "0"
                 formItem['sortNum'] = str(sort)
                 formItem['logicShowConfig'] = {}
