@@ -3,13 +3,11 @@ import sys
 import requests
 import json
 import yaml
-import oss2
+# import oss2
 from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 from urllib3.exceptions import InsecureRequestWarning
-import smtplib
-from email.mime.text import MIMEText
-from email.utils import formataddr
+
 
 # debug模式
 debug = False
@@ -77,8 +75,8 @@ def getCpdailyApis(user):
             break
     if flag:
         log(user['school'] + ' 未找到该院校信息，请检查是否是学校全称错误')
+        InfoSubmit('未找到该院校信息')
         exit(-1)
-    log(apis)
     return apis
 
 
@@ -145,30 +143,31 @@ def queryForm(session, apis):
     res = session.post(queryCollectWidUrl, headers=headers,
                        data=json.dumps(params), verify=not debug)
     # print(res.content)
-    if len(res.json()['datas']['rows']) < 1:
-        return None
+    try:
+        if len(res.json()['datas']['rows']) < 1:
+            return None
+    except Exception as e:
+        return "WAP"
+    else:
+        collectWid = res.json()['datas']['rows'][0]['wid']
+        formWid = res.json()['datas']['rows'][0]['formWid']
 
-    collectWid = None
-    formWid = None
-    for form in res.json()['datas']['rows']:
-        if form["subject"].find("疫情") != -1:
-            collectWid = form['wid']
-            formWid = form['formWid']
-            break
+        detailCollector = 'https://{host}/wec-counselor-collector-apps/stu/collector/detailCollector'.format(
+            host=host)
+        res = session.post(url=detailCollector, headers=headers,
+                        data=json.dumps({"collectorWid": collectWid}), verify=not debug)
+        schoolTaskWid = res.json()['datas']['collector']['schoolTaskWid']
 
-    detailCollector = 'https://{host}/wec-counselor-collector-apps/stu/collector/detailCollector'.format(
-        host=host)
-    res = session.post(url=detailCollector, headers=headers,
-                       data=json.dumps({"collectorWid": collectWid}), verify=not debug)
-    schoolTaskWid = res.json()['datas']['collector']['schoolTaskWid']
+        getFormFields = 'https://{host}/wec-counselor-collector-apps/stu/collector/getFormFields'.format(
+            host=host)
+        res = session.post(url=getFormFields, headers=headers, data=json.dumps(
+            {"pageSize": 100, "pageNumber": 1, "formWid": formWid, "collectorWid": collectWid}), verify=not debug)
 
-    getFormFields = 'https://{host}/wec-counselor-collector-apps/stu/collector/getFormFields'.format(
-        host=host)
-    res = session.post(url=getFormFields, headers=headers, data=json.dumps(
-        {"pageSize": 100, "pageNumber": 1, "formWid": formWid, "collectorWid": collectWid}), verify=not debug)
+        form = res.json()['datas']['rows']
+        return {'collectWid': collectWid, 'formWid': formWid, 'schoolTaskWid': schoolTaskWid, 'form': form}
 
-    form = res.json()['datas']['rows']
-    return {'collectWid': collectWid, 'formWid': formWid, 'schoolTaskWid': schoolTaskWid, 'form': form}
+
+
 
 
 # 填写form
@@ -180,7 +179,6 @@ def fillForm(session, form, host):
             default = config['cpdaily']['defaults'][sort - 1]['default']
             if formItem['title'] != default['title']:
                 log('第%d个默认配置不正确，请检查' % sort)
-                InfoSubmit('第%d个默认配置不正确，请检查' % sort)
                 exit(-1)
             # 文本直接赋值
             if formItem['fieldType'] == "1" or formItem['fieldType'] == "5":
@@ -194,10 +192,6 @@ def fillForm(session, form, host):
                         del fieldItems[i]
                         continue
                     formItem['value'] = fieldItems[i]['itemWid']
-                if(len(fieldItems)==0): 
-                    log('第%d个默认配置选项不正确，请检查' % sort)
-                    InfoSubmit('第%d个默认配置选项不正确，请检查' % sort)
-                    exit(-1)
                 formItem['formType'] = "0"
                 formItem['sortNum'] = str(sort)
                 formItem['logicShowConfig'] = {}
@@ -227,41 +221,6 @@ def fillForm(session, form, host):
     return form
 
 
-# 上传图片到阿里云oss
-def uploadPicture(session, image, host):
-    url = 'https://{host}/wec-counselor-collector-apps/stu/collector/getStsAccess'.format(
-        host=host)
-    res = session.post(url=url, headers={
-                       'content-type': 'application/json'}, data=json.dumps({}), verify=not debug)
-    datas = res.json().get('datas')
-    fileName = datas.get('fileName')
-    accessKeyId = datas.get('accessKeyId')
-    accessSecret = datas.get('accessKeySecret')
-    securityToken = datas.get('securityToken')
-    endPoint = datas.get('endPoint')
-    bucket = datas.get('bucket')
-    bucket = oss2.Bucket(oss2.Auth(access_key_id=accessKeyId,
-                                   access_key_secret=accessSecret), endPoint, bucket)
-    with open(image, "rb") as f:
-        data = f.read()
-    bucket.put_object(key=fileName, headers={
-                      'x-oss-security-token': securityToken}, data=data)
-    res = bucket.sign_url('PUT', fileName, 60)
-    # log(res)
-    return fileName
-
-
-# 获取图片上传位置
-def getPictureUrl(session, fileName, host):
-    url = 'https://{host}/wec-counselor-collector-apps/stu/collector/previewAttachment'.format(
-        host=host)
-    data = {
-        'ossKey': fileName
-    }
-    res = session.post(url=url, headers={
-                       'content-type': 'application/json'}, data=json.dumps(data), verify=not debug)
-    photoUrl = res.json().get('datas')
-    return photoUrl
 
 
 # 提交表单
@@ -292,37 +251,6 @@ def submitForm(formWid, address, collectWid, schoolTaskWid, form, session, host)
 
 title_text = '今日校园疫结果通知'
 
-# 发送邮件通知
-def sendMessage(send, msg):
-    if send != '':
-        log('正在发送邮件通知。。。')
-        res = requests.post(url='http://119.29.11.121:8080/mail-sender/sendMail',
-                            data={'title': title_text, 'content': getTimeStr() + str(msg), 'to': send})
-
-        code = res.json()['code']
-        if code == 0:
-            log('发送邮件通知成功。。。')
-        else:
-            log('发送邮件通知失败。。。')
-            log(res.json())
-
-def sendEmail(send,msg):
-    my_sender= config['Info']['Email']['account']   # 发件人邮箱账号
-    my_pass = config['Info']['Email']['password']         # 发件人邮箱密码
-    my_user = send      # 收件人邮箱账号，我这边发送给自己
-    try:
-        msg=MIMEText(getTimeStr() + str(msg),'plain','utf-8')
-        msg['From']=formataddr(["Mahoo12138",my_sender])  # 括号里的对应发件人邮箱昵称、发件人邮箱账号
-        msg['To']=formataddr(["SB",my_user])              # 括号里的对应收件人邮箱昵称、收件人邮箱账号
-        msg['Subject']=title_text               # 邮件的主题，也可以说是标题
-
-        server=smtplib.SMTP(config['Info']['Email']['server'], config['Info']['Email']['port'])  # 发件人邮箱中的SMTP服务器，端口是25
-        server.login(my_sender, my_pass)  # 括号中对应的是发件人邮箱账号、邮箱密码
-        server.sendmail(my_sender,[my_user,],msg.as_string())  # 括号中对应的是发件人邮箱账号、收件人邮箱账号、发送邮件
-        server.quit()  # 关闭连接
-    except Exception:  # 如果 try 中的语句没有执行，则会执行下面的 ret=False
-        log("邮件发送失败")
-    else: print("邮件发送成功")
 
 # server酱通知
 def sendServerChan(msg):
@@ -384,8 +312,12 @@ def main_handler(event, context):
                 log('正在查询最新待填写问卷。。。')
                 params = queryForm(session, apis)
                 if str(params) == 'None':
-                    log('获取最新待填写问卷失败，可能是辅导员还没有发布。。。')
-                    InfoSubmit('没有新问卷')
+                    log('获取待填写问卷失败,。。。')
+                    InfoSubmit('获取问卷失败, 可能是未发布')
+                    exit(-1)
+                elif params == "WAP":
+                    log('拉取表单错误，可能是IP被拦截')
+                    InfoSubmit('获取问卷失败, 可能是IP被拦截')
                     exit(-1)
                 log('查询最新待填写问卷成功。。。')
                 log('正在自动填写问卷。。。')
