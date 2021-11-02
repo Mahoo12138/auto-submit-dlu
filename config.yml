@@ -1,7 +1,8 @@
 #登陆相关配置
 login:
-  #开放的模拟登陆api服务器地址
+  #拿来主义
   api: "http://119.29.11.121:8080/wisedu-unified-login-api-v1.0/api/login"
+  encryptApi: "https://api.ruoli.cc/wise/getEncryption"
 #用户组配置
 users:
   #单个用户配置，多用户在下方复制一份

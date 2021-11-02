@@ -3,20 +3,10 @@ import sys
 import requests
 import json
 import yaml
-# import oss2
+import random
 from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
-from urllib3.exceptions import InsecureRequestWarning
 
-
-# debug模式
-debug = False
-if debug:
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-# proxies={
-#     'http':'http://127.0.0.1:8899',
-#     'https':'https://127.0.0.1:8899'
-# }
 
 
 # 读取yml配置
@@ -37,7 +27,7 @@ def getCpdailyApis(user):
     apis = {}
     user = user['user']
     schools = requests.get(
-        url='https://mobile.campushoy.com/v6/config/guest/tenant/list', verify=not debug).json()['data']
+        url='https://mobile.campushoy.com/v6/config/guest/tenant/list', verify=True).json()['data']
     flag = True
     for one in schools:
         if one['name'] == user['school']:
@@ -49,7 +39,7 @@ def getCpdailyApis(user):
                 'ids': one['id']
             }
             res = requests.get(url='https://mobile.campushoy.com/v6/config/guest/tenant/info', params=params,
-                               verify=not debug)
+                               verify=True)
             data = res.json()['data'][0]
             joinType = data['joinType']
             idsUrl = data['idsUrl']
@@ -79,7 +69,14 @@ def getCpdailyApis(user):
         exit(-1)
     return apis
 
-
+def getDeviceID(seed):
+        '''根据种子伪随机生成uuid'''
+        random.seed(seed, version=2)  # 种子设置
+        def ranHex(x): return ''.join(
+            random.choices('0123456789ABCDEF', k=x))  # 指定长度随机Hex字符串生成
+        deviceId = "-".join([ranHex(8), ranHex(4), ranHex(4),
+                            ranHex(4), ranHex(12)])  # 拼合字符串
+        return deviceId
 # 获取当前utc时间，并格式化为北京时间
 def getTimeStr():
     utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
@@ -107,7 +104,7 @@ def getSession(user, loginUrl):
 
     cookies = {}
     # 借助上一个项目开放出来的登陆API，模拟登陆
-    res = requests.post(config['login']['api'], params, verify=not debug)
+    res = requests.post(config['login']['api'], params, verify=True)
     cookieStr = str(res.json()['cookies'])
     log(cookieStr)
     if cookieStr == 'None':
@@ -141,7 +138,7 @@ def queryForm(session, apis):
         'pageNumber': 1
     }
     res = session.post(queryCollectWidUrl, headers=headers,
-                       data=json.dumps(params), verify=not debug)
+                       data=json.dumps(params), verify=True)
     # print(res.content)
     try:
         if len(res.json()['datas']['rows']) < 1:
@@ -155,13 +152,13 @@ def queryForm(session, apis):
         detailCollector = 'https://{host}/wec-counselor-collector-apps/stu/collector/detailCollector'.format(
             host=host)
         res = session.post(url=detailCollector, headers=headers,
-                        data=json.dumps({"collectorWid": collectWid}), verify=not debug)
+                        data=json.dumps({"collectorWid": collectWid}), verify=True)
         schoolTaskWid = res.json()['datas']['collector']['schoolTaskWid']
 
         getFormFields = 'https://{host}/wec-counselor-collector-apps/stu/collector/getFormFields'.format(
             host=host)
         res = session.post(url=getFormFields, headers=headers, data=json.dumps(
-            {"pageSize": 100, "pageNumber": 1, "formWid": formWid, "collectorWid": collectWid}), verify=not debug)
+            {"pageSize": 100, "pageNumber": 1, "formWid": formWid, "collectorWid": collectWid}), verify=True)
 
         form = res.json()['datas']['rows']
         return {'collectWid': collectWid, 'formWid': formWid, 'schoolTaskWid': schoolTaskWid, 'form': form}
@@ -224,7 +221,34 @@ def fillForm(session, form, host):
 
 
 # 提交表单
-def submitForm(formWid, address, collectWid, schoolTaskWid, form, session, host):
+def submitForm(formWid, user, collectWid, schoolTaskWid, form, session, host, api):
+    model = "Nokia 2021 Pro"
+    appVersion = "9.0.12"
+    extension = {
+            "model": model,
+            "appVersion": appVersion,
+            "systemVersion": "11",
+            "userId": user['username'],
+            "systemName": "android",
+            "lon": user['lon'],
+            "lat": user['lat'],
+            "deviceId": user['deviceId']
+    }
+    forBody = {
+            "formWid": formWid, "address": user['address'], "collectWid": collectWid,
+            "schoolTaskWid": schoolTaskWid, "form": form, "uaIsCpadaily": True,
+            "latitude": user['lat'], 'longitude': user['lon']
+    }
+    forSubmit = {
+            "appVersion": appVersion,
+            "deviceId": user['deviceId'],
+            "lat": user['lat'],
+            "lon": user['lon'],
+            "model": model,
+            "systemName": "android",
+            "systemVersion": "11",
+            "userId": user['username'],
+    }
     headers = {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 okhttp/3.12.4',
         'CpdailyStandAlone': '0',
@@ -236,14 +260,26 @@ def submitForm(formWid, address, collectWid, schoolTaskWid, form, session, host)
         'Connection': 'Keep-Alive',
         'Accept-Encoding': 'gzip'
     }
+    forBody = json.dumps(forBody, ensure_ascii=False)
+    log('正在请求加密数据...')
+    res = session.post(api, params=forSubmit, data=forBody.encode("utf-8"), verify=True)
     # 默认正常的提交参数json
-    params = {"formWid": formWid, "address": address, "collectWid": collectWid, "schoolTaskWid": schoolTaskWid,
+    params = {"formWid": formWid, "address": user['address'], "collectWid": collectWid, "schoolTaskWid": schoolTaskWid,
               "form": form,"uaIsCpadaily": True}
-    # print(str(form))
+    
+    if res.status_code != 200:
+        log("加密表单数据出错，请反馈")
+    res = res.json()
+    if res['status'] != 200:
+        raise Exception(res['message'])
+    forSubmit['version'] = 'first_v2'
+    forSubmit['calVersion'] = 'firstv'
+    forSubmit['bodyString'] = res['data']['bodyString']
+    forSubmit['sign'] = res['data']['sign']
     submitForm = 'https://{host}/wec-counselor-collector-apps/stu/collector/submitForm'.format(
         host=host)
     r = session.post(url=submitForm, headers=headers,
-                     data=json.dumps(params), verify=not debug)
+                     data=json.dumps(forSubmit), verify=True)
     # print(r.json())
     # print(json.dumps(form))
     msg = r.json()['message']
@@ -302,7 +338,11 @@ def main_handler(event, context):
     # InfoSubmit('自动提交成功！')
     try:
         for user in config['users']:
-            log('当前用户：' + str(user['user']['username']))
+            nowUser = user['user']
+            log('当前用户：' + str(nowUser['username']))
+
+            nowUser['deviceId'] = nowUser.get(
+            'deviceId', getDeviceID(nowUser.get('schoolName', '')+nowUser.get('username', '')))
             apis = getCpdailyApis(user)
             log('脚本开始执行。。。')
             log('开始模拟登陆。。。')
@@ -324,19 +364,19 @@ def main_handler(event, context):
                 form = fillForm(session, params['form'], apis['host'])
                 log('填写问卷成功。。。')
                 log('正在自动提交。。。')
-                msg = submitForm(params['formWid'], user['user']['address'], params['collectWid'],
-                                 params['schoolTaskWid'], form, session, apis['host'])
+                msg = submitForm(params['formWid'], nowUser, params['collectWid'],
+                                 params['schoolTaskWid'], form, session, apis['host'],config['login']['encryptApi'])
                 if msg == 'SUCCESS':
                     log('自动提交成功！')
-                    InfoSubmit('自动提交成功！', user['user']['email'])
+                    InfoSubmit('自动提交成功！', nowUser['email'])
                 elif msg == '该收集已填写无需再次填写':
                     log('今日已提交！')
-                    # InfoSubmit('今日已提交！', user['user']['email'])
+                    # InfoSubmit('今日已提交！', nowUser['email'])
                     InfoSubmit('今日已提交！')
                 else:
                     log('自动提交失败。。。')
                     log('错误是:' + msg)
-                    # InfoSubmit('自动提交失败！错误是:' + msg, user['user']['email'])
+                    # InfoSubmit('自动提交失败！错误是:' + msg, nowUser['email'])
                     exit(-1)
             else:
                 log('模拟登陆失败。。。')
