@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 
 
-
 # 读取yml配置
 def getYmlConfig(yaml_file='config.yml'):
     file = open(yaml_file, 'r', encoding="utf-8")
@@ -27,7 +26,8 @@ def getCpdailyApis(user):
     apis = {}
     user = user['user']
     schools = requests.get(
-        url='https://mobile.campushoy.com/v6/config/guest/tenant/list', verify=True).json()['data']
+        url='https://mobile.campushoy.com/v6/config/guest/tenant/list',
+        verify=True).json()['data']
     flag = True
     for one in schools:
         if one['name'] == user['school']:
@@ -35,11 +35,11 @@ def getCpdailyApis(user):
                 log(user['school'] + ' 未加入今日校园')
                 exit(-1)
             flag = False
-            params = {
-                'ids': one['id']
-            }
-            res = requests.get(url='https://mobile.campushoy.com/v6/config/guest/tenant/info', params=params,
-                               verify=True)
+            params = {'ids': one['id']}
+            res = requests.get(
+                url='https://mobile.campushoy.com/v6/config/guest/tenant/info',
+                params=params,
+                verify=True)
             data = res.json()['data'][0]
             joinType = data['joinType']
             idsUrl = data['idsUrl']
@@ -69,14 +69,22 @@ def getCpdailyApis(user):
         exit(-1)
     return apis
 
+
 def getDeviceID(seed):
-        '''根据种子伪随机生成uuid'''
-        random.seed(seed, version=2)  # 种子设置
-        def ranHex(x): return ''.join(
-            random.choices('0123456789ABCDEF', k=x))  # 指定长度随机Hex字符串生成
-        deviceId = "-".join([ranHex(8), ranHex(4), ranHex(4),
-                            ranHex(4), ranHex(12)])  # 拼合字符串
-        return deviceId
+    '''根据种子伪随机生成uuid'''
+    random.seed(seed, version=2)  # 种子设置
+
+    def ranHex(x):
+        return ''.join(random.choices('0123456789ABCDEF',
+                                      k=x))  # 指定长度随机Hex字符串生成
+
+    deviceId = "-".join(
+        [ranHex(8), ranHex(4),
+         ranHex(4), ranHex(4),
+         ranHex(12)])  # 拼合字符串
+    return deviceId
+
+
 # 获取当前utc时间，并格式化为北京时间
 def getTimeStr():
     utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
@@ -125,7 +133,8 @@ def queryForm(session, apis):
     host = apis['host']
     headers = {
         'Accept': 'application/json, text/plain, */*',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 yiban/8.1.11 cpdaily/8.1.11 wisedu/8.1.11',
+        'User-Agent':
+        'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 yiban/8.1.11 cpdaily/8.1.11 wisedu/8.1.11',
         'content-type': 'application/json',
         'Accept-Encoding': 'gzip,deflate',
         'Accept-Language': 'zh-CN,en-US;q=0.8',
@@ -133,38 +142,56 @@ def queryForm(session, apis):
     }
     queryCollectWidUrl = 'https://{host}/wec-counselor-collector-apps/stu/collector/queryCollectorProcessingList'.format(
         host=host)
-    params = {
-        'pageSize': 6,
-        'pageNumber': 1
-    }
-    res = session.post(queryCollectWidUrl, headers=headers,
-                       data=json.dumps(params), verify=True)
-    # print(res.content)
+
+    params = {'pageSize': 6, 'pageNumber': 1}
+    res = session.post(queryCollectWidUrl,
+                       headers=headers,
+                       data=json.dumps(params),
+                       verify=True)
+    print(res.content)
     try:
         if len(res.json()['datas']['rows']) < 1:
             return None
     except Exception as e:
         return "WAP"
     else:
-        collectWid = res.json()['datas']['rows'][0]['wid']
-        formWid = res.json()['datas']['rows'][0]['formWid']
+        curFrom = res.json()['datas']['rows'][0]
+        collectWid = curFrom['wid']
+        formWid = curFrom['formWid']
+        instanceWid = curFrom['instanceWid']
 
         detailCollector = 'https://{host}/wec-counselor-collector-apps/stu/collector/detailCollector'.format(
             host=host)
-        res = session.post(url=detailCollector, headers=headers,
-                        data=json.dumps({"collectorWid": collectWid}), verify=True)
+        res = session.post(url=detailCollector,
+                           headers=headers,
+                           data=json.dumps({
+                               "collectorWid": collectWid,
+                               "instanceWid": instanceWid
+                           }),
+                           verify=True)
         schoolTaskWid = res.json()['datas']['collector']['schoolTaskWid']
 
         getFormFields = 'https://{host}/wec-counselor-collector-apps/stu/collector/getFormFields'.format(
             host=host)
-        res = session.post(url=getFormFields, headers=headers, data=json.dumps(
-            {"pageSize": 100, "pageNumber": 1, "formWid": formWid, "collectorWid": collectWid}), verify=True)
+        res = session.post(url=getFormFields,
+                           headers=headers,
+                           data=json.dumps({
+                               "pageSize": 100,
+                               "pageNumber": 1,
+                               "formWid": formWid,
+                               "collectorWid": collectWid,
+                               "instanceWid": instanceWid
+                           }),
+                           verify=True)
 
         form = res.json()['datas']['rows']
-        return {'collectWid': collectWid, 'formWid': formWid, 'schoolTaskWid': schoolTaskWid, 'form': form}
-
-
-
+        return {
+            'collectWid': collectWid,
+            'formWid': formWid,
+            "instanceWid": instanceWid,
+            'schoolTaskWid': schoolTaskWid,
+            'form': form
+        }
 
 
 # 填写form
@@ -182,7 +209,7 @@ def fillForm(session, form, host):
                 formItem['value'] = default['value']
             # 单选框需要删掉多余的选项
             if formItem['fieldType'] == "2":
-                # 填充默认值  
+                # 填充默认值
                 fieldItems = formItem['fieldItems']
                 for i in range(0, len(fieldItems))[::-1]:
                     if fieldItems[i]['content'] != default['value']:
@@ -218,42 +245,49 @@ def fillForm(session, form, host):
     return form
 
 
-
-
 # 提交表单
-def submitForm(formWid, user, collectWid, schoolTaskWid, form, session, host, api):
+def submitForm(formWid, user, collectWid, instanceWid, schoolTaskWid, form,
+               session, host, api):
     model = "Nokia 2021 Pro"
     appVersion = "9.0.12"
     extension = {
-            "model": model,
-            "appVersion": appVersion,
-            "systemVersion": "11",
-            "userId": user['username'],
-            "systemName": "android",
-            "lon": user['lon'],
-            "lat": user['lat'],
-            "deviceId": user['deviceId']
+        "model": model,
+        "appVersion": appVersion,
+        "systemVersion": "11",
+        "userId": user['username'],
+        "systemName": "android",
+        "lon": user['lon'],
+        "lat": user['lat'],
+        "deviceId": user['deviceId']
     }
     forBody = {
-            "formWid": formWid, "address": user['address'], "collectWid": collectWid,
-            "schoolTaskWid": schoolTaskWid, "form": form, "uaIsCpadaily": True,
-            "latitude": user['lat'], 'longitude': user['lon']
+        "formWid": formWid,
+        "address": user['address'],
+        "collectWid": collectWid,
+        "instanceWid": instanceWid,
+        "schoolTaskWid": schoolTaskWid,
+        "form": form,
+        "uaIsCpadaily": True,
+        "latitude": user['lat'],
+        'longitude': user['lon']
     }
     forSubmit = {
-            "appVersion": appVersion,
-            "deviceId": user['deviceId'],
-            "lat": user['lat'],
-            "lon": user['lon'],
-            "model": model,
-            "systemName": "android",
-            "systemVersion": "11",
-            "userId": user['username'],
+        "appVersion": appVersion,
+        "deviceId": user['deviceId'],
+        "lat": user['lat'],
+        "lon": user['lon'],
+        "model": model,
+        "systemName": "android",
+        "systemVersion": "11",
+        "userId": user['username'],
     }
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 okhttp/3.12.4',
+        'User-Agent':
+        'Mozilla/5.0 (Linux; Android 4.4.4; OPPO R11 Plus Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Safari/537.36 okhttp/3.12.4',
         'CpdailyStandAlone': '0',
         'extension': '1',
-        'Cpdaily-Extension': 'Ew9uONYq03Siz+VLCzZ4RiWRaXXBubIGc1d7ecaS2YmSDf1+elDL0gdwAw977HbPzvgR3pkeyW3djmnPOMxYro3Tps7PNmLoqfNTAECZqcM1LAyx+2zTfDExNa4yDWs83AyTnSKXs7oHQvFOfXhKNY1OXVzIdnwOkgaNw7XxzM1+2efCWAJgUBoHNV3n3MayLqOwPvSCvBke+SHC/Hy/53+ehU9A1lst6JlpGiFhlEOUybo5s5/o+b/XLUexuEE50IQgdPL4Hi4vPe4yVzA8QLpIMKSFIaRm',
+        'Cpdaily-Extension':
+        'Ew9uONYq03Siz+VLCzZ4RiWRaXXBubIGc1d7ecaS2YmSDf1+elDL0gdwAw977HbPzvgR3pkeyW3djmnPOMxYro3Tps7PNmLoqfNTAECZqcM1LAyx+2zTfDExNa4yDWs83AyTnSKXs7oHQvFOfXhKNY1OXVzIdnwOkgaNw7XxzM1+2efCWAJgUBoHNV3n3MayLqOwPvSCvBke+SHC/Hy/53+ehU9A1lst6JlpGiFhlEOUybo5s5/o+b/XLUexuEE50IQgdPL4Hi4vPe4yVzA8QLpIMKSFIaRm',
         'Content-Type': 'application/json; charset=utf-8',
         # 请注意这个应该和配置文件中的host保持一致
         'Host': host,
@@ -262,11 +296,21 @@ def submitForm(formWid, user, collectWid, schoolTaskWid, form, session, host, ap
     }
     forBody = json.dumps(forBody, ensure_ascii=False)
     log('正在请求加密数据...')
-    res = session.post(api, params=forSubmit, data=forBody.encode("utf-8"), verify=True)
+    res = session.post(api,
+                       params=forSubmit,
+                       data=forBody.encode("utf-8"),
+                       verify=True)
     # 默认正常的提交参数json
-    params = {"formWid": formWid, "address": user['address'], "collectWid": collectWid, "schoolTaskWid": schoolTaskWid,
-              "form": form,"uaIsCpadaily": True}
-    
+    params = {
+        "formWid": formWid,
+        "address": user['address'],
+        "collectWid": collectWid,
+        "instanceWid": instanceWid,
+        "schoolTaskWid": schoolTaskWid,
+        "form": form,
+        "uaIsCpadaily": True
+    }
+
     if res.status_code != 200:
         log("加密表单数据出错，请反馈")
     res = res.json()
@@ -278,12 +322,15 @@ def submitForm(formWid, user, collectWid, schoolTaskWid, form, session, host, ap
     forSubmit['sign'] = res['data']['sign']
     submitForm = 'https://{host}/wec-counselor-collector-apps/stu/collector/submitForm'.format(
         host=host)
-    r = session.post(url=submitForm, headers=headers,
-                     data=json.dumps(forSubmit), verify=True)
+    r = session.post(url=submitForm,
+                     headers=headers,
+                     data=json.dumps(forSubmit),
+                     verify=True)
     # print(r.json())
     # print(json.dumps(form))
     msg = r.json()['message']
     return msg
+
 
 title_text = '今日校园疫结果通知'
 
@@ -291,14 +338,19 @@ title_text = '今日校园疫结果通知'
 # server酱通知
 def sendServerChan(msg):
     log('正在发送Server酱。。。')
-    res = requests.post(url='https://sc.ftqq.com/{0}.send'.format(config['Info']['ServerChan']),
-                            data={'text': title_text, 'desp': getTimeStr() + "\n" + str(msg)})
+    res = requests.post(url='https://sc.ftqq.com/{0}.send'.format(
+        config['Info']['ServerChan']),
+                        data={
+                            'text': title_text,
+                            'desp': getTimeStr() + "\n" + str(msg)
+                        })
     code = res.json()['errmsg']
     if code == 'success':
         log('发送Server酱通知成功。。。')
     else:
         log('发送Server酱通知失败。。。')
-        log('Server酱返回结果'+code)
+        log('Server酱返回结果' + code)
+
 
 # Qmsg酱通知
 def sendQmsgChan(msg):
@@ -306,10 +358,14 @@ def sendQmsgChan(msg):
     url = 'https://v1.hitokoto.cn?c=h&c=d&h=j'
     try:
         res = requests.get(url).json()
-        hito_msg='\n' + res['hitokoto'] +  '—— ' + res['from']
-        res = requests.post(url='https://qmsg.zendee.cn:443/send/{0}'.format(config['Info']['Qsmg']),
-                            data={'msg': title_text + '\n时间：' + getTimeStr() 
-                            + "\n结果：" + str(msg) + "\n一言："+str(hito_msg)})
+        hito_msg = '\n' + res['hitokoto'] + '—— ' + res['from']
+        res = requests.post(url='https://qmsg.zendee.cn:443/send/{0}'.format(
+            config['Info']['Qsmg']),
+                            data={
+                                'msg':
+                                title_text + '\n时间：' + getTimeStr() + "\n结果：" +
+                                str(msg) + "\n一言：" + str(hito_msg)
+                            })
         # print(str(res.content))
     except Exception as e:
         log("出现问题了！" + str(e))
@@ -324,17 +380,18 @@ def sendQmsgChan(msg):
             log('发送Qmsg酱通知失败。。。')
             log('Qmsg酱返回结果: ' + str(err))
 
+
 # 综合提交
 def InfoSubmit(msg, send=None):
     # if(None != send):
     #     if(config['Info']['Email']['enable']): sendEmail(send,msg)
     #     else: sendMessage(send, msg)
     # if(config['Info']['ServerChan']): sendServerChan(msg)
-    if(config['Info']['Qsmg']): sendQmsgChan(msg)
+    if (config['Info']['Qsmg']): sendQmsgChan(msg)
 
 
 def main_handler(event, context):
-    msg="今日校园提交成功"
+    msg = "今日校园提交成功"
     # InfoSubmit('自动提交成功！')
     try:
         for user in config['users']:
@@ -342,7 +399,10 @@ def main_handler(event, context):
             log('当前用户：' + str(nowUser['username']))
 
             nowUser['deviceId'] = nowUser.get(
-            'deviceId', getDeviceID(nowUser.get('schoolName', '')+nowUser.get('username', '')))
+                'deviceId',
+                getDeviceID(
+                    nowUser.get('schoolName', '') +
+                    nowUser.get('username', '')))
             apis = getCpdailyApis(user)
             log('脚本开始执行。。。')
             log('开始模拟登陆。。。')
@@ -364,8 +424,10 @@ def main_handler(event, context):
                 form = fillForm(session, params['form'], apis['host'])
                 log('填写问卷成功。。。')
                 log('正在自动提交。。。')
-                msg = submitForm(params['formWid'], nowUser, params['collectWid'],
-                                 params['schoolTaskWid'], form, session, apis['host'],config['login']['encryptApi'])
+                msg = submitForm(params['formWid'], nowUser,
+                                 params['collectWid'], params['instanceWid'],
+                                 params['schoolTaskWid'], form, session,
+                                 apis['host'], config['login']['encryptApi'])
                 if msg == 'SUCCESS':
                     log('自动提交成功！')
                     InfoSubmit('自动提交成功！', nowUser['email'])
