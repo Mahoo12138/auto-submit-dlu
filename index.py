@@ -6,6 +6,7 @@ import yaml
 import random
 from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
+import utils
 
 
 # 读取yml配置
@@ -67,6 +68,7 @@ def getCpdailyApis(user):
         log(user['school'] + ' 未找到该院校信息，请检查是否是学校全称错误')
         InfoSubmit('未找到该院校信息')
         exit(-1)
+    print(apis)
     return apis
 
 
@@ -111,7 +113,6 @@ def getSession(user, loginUrl):
     }
 
     cookies = {}
-    # 借助上一个项目开放出来的登陆API，模拟登陆
     res = requests.post(config['login']['api'], params, verify=True)
     cookieStr = str(res.json()['cookies'])
     log(cookieStr)
@@ -260,7 +261,7 @@ def submitForm(formWid, user, collectWid, instanceWid, schoolTaskWid, form,
         "lat": user['lat'],
         "deviceId": user['deviceId']
     }
-    forBody = {
+    formBody = {
         "formWid": formWid,
         "address": user['address'],
         "collectWid": collectWid,
@@ -271,7 +272,7 @@ def submitForm(formWid, user, collectWid, instanceWid, schoolTaskWid, form,
         "latitude": user['lat'],
         'longitude': user['lon']
     }
-    forSubmit = {
+    formSubmit = {
         "appVersion": appVersion,
         "deviceId": user['deviceId'],
         "lat": user['lat'],
@@ -294,13 +295,9 @@ def submitForm(formWid, user, collectWid, instanceWid, schoolTaskWid, form,
         'Connection': 'Keep-Alive',
         'Accept-Encoding': 'gzip'
     }
-    forBody = json.dumps(forBody, ensure_ascii=False)
-    log('正在请求加密数据...')
-    res = session.post(api,
-                       params=forSubmit,
-                       data=forBody.encode("utf-8"),
-                       verify=True)
-    # 默认正常的提交参数json
+    formBody = utils.formBodyEncrypt(formBody)
+    signHash = utils.getSignHash(formSubmit)
+    log('正在加密数据...')
     params = {
         "formWid": formWid,
         "address": user['address'],
@@ -311,28 +308,21 @@ def submitForm(formWid, user, collectWid, instanceWid, schoolTaskWid, form,
         "uaIsCpadaily": True
     }
 
-    if res.status_code != 200:
-        log("加密表单数据出错，请反馈")
-    res = res.json()
-    if res['status'] != 200:
-        raise Exception(res['message'])
-    forSubmit['version'] = 'first_v2'
-    forSubmit['calVersion'] = 'firstv'
-    forSubmit['bodyString'] = res['data']['bodyString']
-    forSubmit['sign'] = res['data']['sign']
+    formSubmit['version'] = 'first_v2'
+    formSubmit['calVersion'] = 'firstv'
+    formSubmit['bodyString'] = formBody
+    formSubmit['sign'] = signHash
     submitForm = 'https://{host}/wec-counselor-collector-apps/stu/collector/submitForm'.format(
         host=host)
     r = session.post(url=submitForm,
                      headers=headers,
-                     data=json.dumps(forSubmit),
+                     data=json.dumps(formSubmit),
                      verify=True)
-    # print(r.json())
-    # print(json.dumps(form))
     msg = r.json()['message']
     return msg
 
 
-title_text = '今日校园疫结果通知'
+title_text = '今日校园防疫结果通知'
 
 
 # server酱通知
